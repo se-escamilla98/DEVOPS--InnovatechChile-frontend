@@ -1,0 +1,19 @@
+services:
+  frontend:
+    build:
+      context: .
+      args:
+        # La URL del backend se pasa como argumento de build.
+        # En local apunta a localhost, en EC2 apuntará a la IP privada del backend.
+        VITE_API_URL: http://localhost:8080
+    container_name: innovatech_frontend
+    ports:
+      # El frontend es accesible en el puerto 80, igual que en tu diagrama
+      # donde SG_FRONT acepta HTTP en el puerto 80 desde Internet.
+      - "80:80"
+    networks:
+      - innovatech_network
+
+networks:
+  innovatech_network:
+    driver: bridge
