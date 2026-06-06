@@ -37,8 +37,8 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_KEY }}
           script: |
-            cd ~/innovatech-frontend
-            docker pull ${{ secrets.DOCKER_USERNAME }}/innovatech-frontend:latest
-            docker compose down
-            docker compose up -d
-            docker image prune -f
+              cd ~/innovatech-frontend
+              docker pull seescamilla/innovatech-frontend:latest
+              docker-compose down
+              docker-compose up -d
+              docker image prune -f
