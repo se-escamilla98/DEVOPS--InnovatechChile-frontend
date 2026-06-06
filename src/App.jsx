@@ -10,7 +10,7 @@ function App() {
   // En desarrollo apunta a localhost:8080.
   // En producción (EC2) apuntará a la IP privada del backend.
   // VITE_ es el prefijo obligatorio para que Vite exponga la variable al navegador.
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
+  const API_URL = import.meta.env.VITE_API_URL || "";
 
   // Al cargar la app, verificamos que el backend responde
   useEffect(() => {
