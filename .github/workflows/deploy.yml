@@ -1,5 +1,6 @@
-name: Frontend CI/CD Pipeline
+name: Frontend CI/CD Pipeline - EP3
 
+# Se activa SOLO en push a la rama deploy
 on:
   push:
     branches:
@@ -10,34 +11,55 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Paso 1: Descarga el código del repositorio
       - name: Checkout código
         uses: actions/checkout@v4
 
-      - name: Login en Docker Hub
-        uses: docker/login-action@v3
+      # Paso 2: Configura las credenciales de AWS
+      - name: Configurar credenciales AWS
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
 
-      - name: Build y Push imagen Docker
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          no-cache: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/innovatech-frontend:latest
-          build-args: |
-            VITE_API_URL=${{ secrets.BACKEND_URL }}
+      # Paso 3: Login en Amazon ECR
+      - name: Login en Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Deploy en EC2
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_KEY }}
-          script: |
-            cd ~/innovatech-frontend
-            docker pull ${{ secrets.DOCKER_USERNAME }}/innovatech-frontend:latest
-            docker-compose down
-            docker-compose up -d
-            docker image prune -f
+      # Paso 4: Build y Push al repositorio ECR
+      # VITE_API_URL se deja vacío intencionalmente:
+      # el navegador usa rutas relativas (/health, /api/...)
+      # y Nginx las intercepta con proxy_pass hacia el backend
+      # dentro de la VPC. Esto elimina CORS por completo.
+      - name: Build y Push imagen a ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build \
+            --no-cache \
+            --build-arg VITE_API_URL= \
+            -t $ECR_REGISTRY/innovatech-frontend:$IMAGE_TAG \
+            -t $ECR_REGISTRY/innovatech-frontend:latest \
+            .
+          docker push $ECR_REGISTRY/innovatech-frontend:$IMAGE_TAG
+          docker push $ECR_REGISTRY/innovatech-frontend:latest
+          echo "Imagen publicada: $ECR_REGISTRY/innovatech-frontend:$IMAGE_TAG"
+
+      # Paso 5: Fuerza un nuevo despliegue en ECS
+      # ECS baja la imagen nueva desde ECR y reemplaza la tarea
+      # actual con rolling update sin downtime
+      - name: Deploy en ECS
+        run: |
+          aws ecs update-service \
+            --cluster innovatech-cluster \
+            --service frontend-service \
+            --task-definition innovatech-frontend:2 \
+            --force-new-deployment \
+            --region us-east-1
+
+          echo "Deploy iniciado. ECS reemplazara la tarea actual de forma gradual."
+          echo "Verificar en: AWS Console → ECS → innovatech-cluster → frontend-service"
