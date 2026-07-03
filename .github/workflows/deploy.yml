@@ -24,6 +24,7 @@ jobs:
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: us-east-1
 
+<<<<<<< HEAD
       # Paso 3: Login en Amazon ECR
       - name: Login en Amazon ECR
         id: login-ecr
@@ -63,3 +64,28 @@ jobs:
 
           echo "Deploy iniciado. ECS reemplazara la tarea actual de forma gradual."
           echo "Verificar en: AWS Console → ECS → innovatech-cluster → frontend-service"
+=======
+      # El frontend necesita la URL del backend como argumento de build
+      # En EC2 esta será la IP privada del backend según tu diagrama
+      - name: Build y Push imagen Docker
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/innovatech-frontend:latest
+          build-args: |
+            VITE_API_URL=
+
+      - name: Deploy en EC2
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          script: |
+            cd ~/innovatech-frontend
+            docker pull ${{ secrets.DOCKER_USERNAME }}/innovatech-frontend:latest
+            docker compose down
+            docker compose up -d
+            docker image prune -f
+>>>>>>> 6d3d47e7fe3d6ac02d0717c6f172869d4acf7568
