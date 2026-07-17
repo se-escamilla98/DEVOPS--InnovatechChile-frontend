@@ -4,7 +4,7 @@ Aplicación React con Vite servida por Nginx, desplegada en AWS ECS Fargate como
 
 ## Stack tecnológico
 
-- **Framework**: React 18 + Vite
+- **Framework**: React 19 + Vite
 - **Servidor web**: Nginx (Alpine)
 - **Contenedor**: Docker (multi-stage build)
 - **Orquestación**: AWS ECS + Fargate

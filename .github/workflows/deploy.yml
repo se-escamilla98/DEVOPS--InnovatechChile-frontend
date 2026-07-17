@@ -1,65 +1,60 @@
-name: Frontend CI/CD Pipeline - EP3
+name: Frontend CI/CD Pipeline - EP3 (ECS Fargate)
 
-# Se activa SOLO en push a la rama deploy
+# Se activa SOLO con push a la rama deploy.
 on:
   push:
     branches:
       - deploy
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: innovatech-frontend
+  ECS_CLUSTER: innovatech-cluster
+  ECS_SERVICE: frontend-service
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # Paso 1: Descarga el código del repositorio
+      # Paso 1: Descarga el código
       - name: Checkout código
         uses: actions/checkout@v4
 
-      # Paso 2: Configura las credenciales de AWS
+      # Paso 2: Configura credenciales de AWS (con session token del Learner Lab)
       - name: Configurar credenciales AWS
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-          aws-region: us-east-1
+          aws-region: ${{ env.AWS_REGION }}
 
       # Paso 3: Login en Amazon ECR
       - name: Login en Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # Paso 4: Build y Push al repositorio ECR
-      # VITE_API_URL se deja vacío intencionalmente:
-      # el navegador usa rutas relativas (/health, /api/...)
-      # y Nginx las intercepta con proxy_pass hacia el backend
-      # dentro de la VPC. Esto elimina CORS por completo.
+      # Paso 4: Build y push.
+      # VITE_API_URL va VACÍO a propósito: el frontend usa rutas relativas
+      # (/api, /health) y Nginx hace el proxy interno al backend. Esto elimina CORS.
       - name: Build y Push imagen a ECR
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build \
-            --no-cache \
+          docker build --no-cache \
             --build-arg VITE_API_URL= \
-            -t $ECR_REGISTRY/innovatech-frontend:$IMAGE_TAG \
-            -t $ECR_REGISTRY/innovatech-frontend:latest \
-            .
-          docker push $ECR_REGISTRY/innovatech-frontend:$IMAGE_TAG
-          docker push $ECR_REGISTRY/innovatech-frontend:latest
-          echo "Imagen publicada: $ECR_REGISTRY/innovatech-frontend:$IMAGE_TAG"
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
-      # Paso 5: Fuerza un nuevo despliegue en ECS
-      # ECS baja la imagen nueva desde ECR y reemplaza la tarea
-      # actual con rolling update sin downtime
-      - name: Deploy en ECS
+      # Paso 5: Rolling deploy en ECS sin downtime
+      - name: Deploy en ECS (rolling update)
         run: |
           aws ecs update-service \
-            --cluster innovatech-cluster \
-            --service frontend-service \
-            --task-definition innovatech-frontend:2 \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.ECS_SERVICE }} \
             --force-new-deployment \
-            --region us-east-1
-
-          echo "Deploy iniciado. ECS reemplazara la tarea actual de forma gradual."
-          echo "Verificar en: AWS Console → ECS → innovatech-cluster → frontend-service"
+            --region ${{ env.AWS_REGION }}
