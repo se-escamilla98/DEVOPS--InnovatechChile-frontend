@@ -35,6 +35,17 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      # Paso 3.1: Crea el repositorio ECR si aún no existe (idempotente).
+      # Hace el pipeline autosuficiente, sin depender del script IaC.
+      - name: Crear repositorio ECR si no existe
+        run: |
+          aws ecr describe-repositories \
+            --repository-names $ECR_REPOSITORY \
+            --region $AWS_REGION 2>/dev/null \
+          || aws ecr create-repository \
+            --repository-name $ECR_REPOSITORY \
+            --region $AWS_REGION
+
       # Paso 4: Build y push.
       # VITE_API_URL va VACÍO a propósito: el frontend usa rutas relativas
       # (/api, /health) y Nginx hace el proxy interno al backend. Esto elimina CORS.
